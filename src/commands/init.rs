@@ -9,6 +9,7 @@ pub fn init(path: &path::Path) -> Result<(), std::io::Error> {
 slug = ""
 locale = ""
 title = ""
+author = ""
 use_short = true
     "#)?;
 

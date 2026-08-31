@@ -1,7 +1,6 @@
-use std::{ env, path };
+use std::path;
 
 use clap::{ Parser, Subcommand };
-use serde::{ Serialize, Deserialize };
 use dotenvy::dotenv;
 
 mod commands;
@@ -14,14 +13,6 @@ struct CLI {
 
     #[arg(short, long, env = "PUBLISHER_TOKEN")]
     publisher_token: String
-}
-
-#[derive(Debug, Serialize, Deserialize)]
-struct Meta {
-    slug: String,
-    locale: String,
-    title: String,
-    author: String,
 }
 
 #[derive(Subcommand)]
