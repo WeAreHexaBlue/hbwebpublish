@@ -5,13 +5,11 @@ pub fn init(path: &path::Path) -> Result<(), std::io::Error> {
 
     fs::write(path.join("body.html"), "Example <b>news body</b> <i>content</i>.")?;
     fs::write(path.join("short.html"), "Example <b>preview</b>.")?;
-    fs::write(path.join("meta.toml"), r#"[meta]
-slug = ""
+    fs::write(path.join("meta.toml"), r#"slug = ""
 locale = ""
 title = ""
 author = ""
-use_short = true
-    "#)?;
+use_short = true"#)?;
 
     Ok(())
 }

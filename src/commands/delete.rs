@@ -1,3 +1,3 @@
-pub fn delete(slug: String, locale: String) -> Result<(), Box<dyn std::error::Error>> {
+pub fn delete(slug: String, locale: String, token: &String) -> Result<(), Box<dyn std::error::Error>> {
     Ok(())
 }

@@ -11,8 +11,8 @@ struct CLI {
     #[command(subcommand)]
     command: Commands,
 
-    #[arg(short, long, env = "PUBLISHER_TOKEN")]
-    publisher_token: String
+    #[arg(short, long, global = true, env = "PUBLISHER_TOKEN")]
+    publisher_token: Option<String>
 }
 
 #[derive(Subcommand)]
@@ -36,10 +36,20 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let cli = CLI::parse();
 
+    let require_token = || {
+        cli.publisher_token.ok_or("Missing publisher token. Provide -p or set PUBLISHER_TOKEN in .env")
+    };
+
     match cli.command {
         Commands::Init { dir } => commands::init(&dir)?,
-        Commands::Publish { dir } => commands::publish(&dir)?,
-        Commands::Delete { slug, locale } => commands::delete(slug, locale)?,
+        Commands::Publish { dir } => {
+            let token = require_token()?;
+            commands::publish(&dir, &token)?;
+        },
+        Commands::Delete { slug, locale } => {
+            let token = require_token()?;
+            commands::delete(slug, locale, &token)?;
+        },
     }
 
     Ok(())
