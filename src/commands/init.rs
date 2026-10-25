@@ -9,6 +9,7 @@ pub fn init(path: &path::Path) -> Result<(), std::io::Error> {
 locale = ""
 title = ""
 author = ""
+tags = []
 use_short = true"#)?;
 
     Ok(())

@@ -7,6 +7,8 @@ struct Meta {
     locale: String,
     title: String,
     author: String,
+    #[serde(default)]
+    tags: Option<Vec<String>>,
     use_short: Option<bool>
 }
 
@@ -19,6 +21,8 @@ struct NewsPubPUT<'a> {
     body: &'a str,
     #[serde(skip_serializing_if = "Option::is_none")]
     short: Option<&'a str>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    tags: Option<&'a [String]>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -43,7 +47,8 @@ pub fn publish(dir: &path::Path, token: &String) -> Result<(), Box<dyn std::erro
         title: &meta.title,
         author: &meta.author,
         body: body.trim(),
-        short
+        short,
+        tags: meta.tags.as_deref()
     };
 
     let use_test = env::var("USE_TEST")
