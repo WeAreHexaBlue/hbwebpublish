@@ -11,7 +11,7 @@ struct CLI {
     #[command(subcommand)]
     command: Commands,
 
-    #[arg(short, long, global = true, env = "PUBLISHER_TOKEN")]
+    #[arg(short = 't', long = "token", global = true, env = "PUBLISHER_TOKEN")]
     publisher_token: Option<String>
 }
 
@@ -23,7 +23,10 @@ enum Commands {
     },
     Publish {
         #[arg(default_value = ".")]
-        dir: path::PathBuf
+        dir: path::PathBuf,
+
+        #[arg(short = 'p', long)]
+        preserve: bool
     },
     Delete {
         slug: String,
@@ -37,14 +40,14 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let cli = CLI::parse();
 
     let require_token = || {
-        cli.publisher_token.ok_or("Missing publisher token. Provide -p or set PUBLISHER_TOKEN in .env")
+        cli.publisher_token.ok_or("Missing publisher token. Provide -t or set PUBLISHER_TOKEN in .env")
     };
 
     match cli.command {
         Commands::Init { dir } => commands::init(&dir)?,
-        Commands::Publish { dir } => {
+        Commands::Publish { dir, preserve } => {
             let token = require_token()?;
-            commands::publish(&dir, &token)?;
+            commands::publish(&dir, &token, preserve)?;
         },
         Commands::Delete { slug, locale } => {
             let token = require_token()?;
