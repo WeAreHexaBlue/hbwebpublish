@@ -1,9 +1,18 @@
-use std::{ env, fs, path };
-use base64::{ engine::general_purpose::STANDARD, Engine as _ };
-use serde::{ Serialize, Deserialize };
+use base64::{Engine as _, engine::general_purpose::STANDARD};
+use serde::{Deserialize, Serialize};
+use std::{env, fs, path};
 
 const MAX_IMAGE_BYTES: u64 = 8 * 1024 * 1024;
 const IMAGE_EXTENSIONS: [&str; 6] = ["png", "jpg", "jpeg", "gif", "webp", "avif"];
+
+#[derive(Debug, Serialize, Deserialize)]
+struct PollMeta {
+    key: String,
+    question: String,
+    options: Vec<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    ends_at: Option<String>,
+}
 
 #[derive(Debug, Serialize, Deserialize)]
 struct Meta {
@@ -13,13 +22,15 @@ struct Meta {
     author: String,
     #[serde(default)]
     tags: Option<Vec<String>>,
-    use_short: Option<bool>
+    #[serde(default)]
+    polls: Option<Vec<PollMeta>>,
+    use_short: Option<bool>,
 }
 
 #[derive(Debug, Serialize)]
 struct NewsImage {
     name: String,
-    data: String
+    data: String,
 }
 
 #[derive(Debug, Serialize)]
@@ -33,21 +44,27 @@ struct NewsPubPUT<'a> {
     short: Option<&'a str>,
     #[serde(skip_serializing_if = "Option::is_none")]
     tags: Option<&'a [String]>,
-    images: &'a [NewsImage]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    polls: Option<&'a [PollMeta]>,
+    images: &'a [NewsImage],
 }
 
 #[derive(Debug, Deserialize)]
 struct NewsPubPUTRes {
     created: bool,
     slug: String,
-    locale: String
+    locale: String,
 }
 
 fn collect_images(dir: &path::Path) -> Result<Vec<NewsImage>, Box<dyn std::error::Error>> {
     let images_dir = dir.join("images");
 
-    if !images_dir.exists() { return Ok(vec![]); }
-    if !images_dir.is_dir() { return Err("`images` must be a directory.".into()); }
+    if !images_dir.exists() {
+        return Ok(vec![]);
+    }
+    if !images_dir.is_dir() {
+        return Err("`images` must be a directory.".into());
+    }
 
     let mut entries = fs::read_dir(&images_dir)?.collect::<Result<Vec<_>, _>>()?;
     entries.sort_by_key(|entry| entry.file_name());
@@ -56,7 +73,9 @@ fn collect_images(dir: &path::Path) -> Result<Vec<NewsImage>, Box<dyn std::error
 
     for entry in entries {
         let image_path = entry.path();
-        if !image_path.is_file() { continue; }
+        if !image_path.is_file() {
+            continue;
+        }
 
         let name = entry.file_name().to_string_lossy().into_owned();
         let extension = image_path
@@ -76,19 +95,30 @@ fn collect_images(dir: &path::Path) -> Result<Vec<NewsImage>, Box<dyn std::error
         }
 
         let bytes = fs::read(&image_path)?;
-        images.push(NewsImage { name, data: STANDARD.encode(bytes) });
+        images.push(NewsImage {
+            name,
+            data: STANDARD.encode(bytes),
+        });
     }
 
     Ok(images)
 }
 
-pub fn publish(dir: &path::Path, token: &String, preserve: bool) -> Result<(), Box<dyn std::error::Error>> {
+pub fn publish(
+    dir: &path::Path,
+    token: &String,
+    preserve: bool,
+) -> Result<(), Box<dyn std::error::Error>> {
     let fmeta = fs::read_to_string(dir.join("meta.toml"))?;
     let meta: Meta = toml::from_str(&fmeta)?;
 
     let body = fs::read_to_string(dir.join("body.html"))?;
-    
-    let fshort = if meta.use_short != Some(false) { fs::read_to_string(dir.join("short.html")).ok() } else { None };
+
+    let fshort = if meta.use_short != Some(false) {
+        fs::read_to_string(dir.join("short.html")).ok()
+    } else {
+        None
+    };
     let short = fshort.as_deref().map(str::trim).filter(|s| !s.is_empty());
 
     let images = collect_images(dir)?;
@@ -101,7 +131,8 @@ pub fn publish(dir: &path::Path, token: &String, preserve: bool) -> Result<(), B
         body: body.trim(),
         short,
         tags: meta.tags.as_deref(),
-        images: &images
+        polls: meta.polls.as_deref(),
+        images: &images,
     };
 
     let use_test = env::var("USE_TEST")
@@ -109,7 +140,11 @@ pub fn publish(dir: &path::Path, token: &String, preserve: bool) -> Result<(), B
         .and_then(|value| value.trim().parse::<bool>().ok())
         .unwrap_or(false);
 
-    let default_endpoint = if !use_test { "https://hexa.blue/news/pub" } else { "http://localhost:5173/news/pub" };
+    let default_endpoint = if !use_test {
+        "https://hexa.blue/news/pub"
+    } else {
+        "http://localhost:5173/news/pub"
+    };
     let endpoint = env::var("PUBLISH_ENDPOINT")
         .ok()
         .map(|value| value.trim().to_string())
@@ -124,18 +159,28 @@ pub fn publish(dir: &path::Path, token: &String, preserve: bool) -> Result<(), B
         .send()?;
 
     if !res.status().is_success() {
-        return Err(format!("HTTP Error {}: {}", res.status(), res.text().unwrap_or_default()).into());
+        return Err(format!(
+            "HTTP Error {}: {}",
+            res.status(),
+            res.text().unwrap_or_default()
+        )
+        .into());
     }
 
     let rdata: NewsPubPUTRes = res.json()?;
     let action = if rdata.created { "Created" } else { "Updated" };
-    println!("{action} article `{}` for locale {}", rdata.slug, rdata.locale);
+    println!(
+        "{action} article `{}` for locale {}",
+        rdata.slug, rdata.locale
+    );
 
     if !images.is_empty() {
         println!("Uploaded {} image(s).", images.len());
     }
 
-    if !preserve { fs::remove_dir_all(dir)? };
+    if !preserve {
+        fs::remove_dir_all(dir)?
+    };
 
     Ok(())
 }
